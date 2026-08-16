@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>레프 편집실</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#FAF8F3">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="편집실">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+
+<style>
+  :root{
+    --paper:#FAF8F3; --wash:#F0EBE1; --ink:#1C1915; --ink-soft:#6E675A;
+    --line:#E3DDD0; --seal:#BE3A2B; --seal-deep:#9C2E22;
+    --serif:'Noto Serif KR','Nanum Myeongjo','Apple SD Gothic Neo',serif;
+    --sans:'Apple SD Gothic Neo','Noto Sans KR',sans-serif;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%}
+  body{background:var(--paper);color:var(--ink);font-family:var(--serif);
+    display:flex;flex-direction:column;max-width:720px;margin:0 auto}
+  header{display:flex;align-items:center;gap:14px;
+    padding:calc(env(safe-area-inset-top,0px) + 16px) 20px 0;
+    background:var(--paper);position:sticky;top:0;z-index:20}
+  .mode{font-size:16px;font-weight:600;letter-spacing:.05em;color:var(--ink-soft);
+    background:none;border:none;padding:6px 2px 10px;cursor:pointer;
+    border-bottom:2px solid transparent}
+  .mode.on{color:var(--ink);border-bottom-color:var(--seal)}
+  header .spacer{flex:1}
+  .ghost{font-family:var(--sans);font-size:13px;color:var(--ink-soft);
+    background:none;border:none;padding:6px 4px 10px;cursor:pointer}
+  .ghost:active{color:var(--ink)}
+  main{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;border-top:1px solid var(--line)}
+
+  /* ══ 수첩 ══ */
+  #dumpBar{display:flex;gap:8px;padding:14px 20px;border-bottom:1px solid var(--line);
+    position:sticky;top:0;background:var(--paper);z-index:10}
+  #dumpIn{flex:1;font-family:var(--serif);font-size:16px;color:var(--ink);
+    background:none;border:none;outline:none;line-height:1.6}
+  #dumpIn::placeholder{color:#C9C2B4}
+  #dumpAdd{width:40px;height:40px;flex:none;border:none;border-radius:8px;
+    background:var(--ink);color:var(--paper);font-size:18px;cursor:pointer}
+  #dumpAdd:active{background:var(--seal)}
+  .chips{display:flex;gap:6px;padding:10px 20px;overflow-x:auto;border-bottom:1px solid var(--line)}
+  .chip{font-family:var(--sans);font-size:12px;padding:5px 12px;border-radius:14px;
+    border:1px solid var(--line);background:var(--paper);color:var(--ink-soft);
+    cursor:pointer;white-space:nowrap}
+  .chip.on{background:var(--ink);border-color:var(--ink);color:var(--paper)}
+  ul.dump{list-style:none;padding-bottom:120px}
+  .day-head{font-family:var(--sans);font-size:11px;letter-spacing:.1em;color:var(--ink-soft);
+    padding:16px 20px 6px}
+  ul.dump li{border-bottom:1px solid var(--line);padding:0 20px}
+  .d-row{display:flex;align-items:flex-start;gap:12px;padding:13px 0;cursor:pointer}
+  .d-sym{font-size:16px;line-height:1.55;flex:none;width:20px;text-align:center;cursor:pointer;user-select:none}
+  .d-sym.done{color:var(--ink-soft)}
+  .d-text{flex:1;font-size:15.5px;line-height:1.55;word-break:break-word}
+  .d-text.done{color:var(--ink-soft);text-decoration:line-through;
+    text-decoration-color:rgba(190,58,43,.5)}
+  .d-meta{font-family:var(--sans);font-size:10.5px;color:var(--ink-soft);flex:none;padding-top:4px}
+  .d-tag{display:inline-block;font-family:var(--sans);font-size:10px;color:var(--seal-deep);
+    border:1px solid rgba(190,58,43,.35);border-radius:9px;padding:1px 7px;margin-left:6px;vertical-align:2px}
+  .d-actions{display:none;gap:6px;padding:0 0 13px 32px;flex-wrap:wrap}
+  li.open .d-actions{display:flex}
+  .d-actions button{font-family:var(--sans);font-size:12px;padding:6px 12px;
+    border:1px solid var(--line);border-radius:7px;background:var(--paper);color:var(--ink);cursor:pointer}
+  .d-actions button:active{background:var(--wash)}
+  .d-actions .del{color:var(--seal-deep);border-color:rgba(190,58,43,.35)}
+  .dump-empty,.empty{padding:64px 24px;text-align:center;color:var(--ink-soft);
+    font-size:14px;line-height:2}
+  .dump-empty b,.empty b{display:block;color:var(--ink);font-weight:600;font-size:16px;margin-bottom:8px}
+
+  /* ══ 원고 목록 ══ */
+  ul.posts{list-style:none}
+  ul.posts li{padding:18px 20px;border-bottom:1px solid var(--line);
+    display:flex;align-items:center;gap:12px;cursor:pointer}
+  ul.posts li:active{background:var(--wash)}
+  .dot{width:7px;height:7px;border-radius:50%;flex:none;background:var(--line)}
+  .dot.draft{background:var(--seal)}
+  .p-body{flex:1;min-width:0}
+  .p-title{font-size:15.5px;font-weight:600;line-height:1.45;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .p-title.untitled{color:var(--ink-soft);font-weight:400}
+  .p-meta{font-family:var(--sans);font-size:11px;color:var(--ink-soft);margin-top:4px}
+  .seal-fab{position:fixed;right:max(20px,calc(50vw - 340px));
+    bottom:calc(env(safe-area-inset-bottom,0px) + 24px);
+    width:56px;height:56px;background:var(--seal);color:#FBF6EF;border:none;
+    border-radius:10px;cursor:pointer;z-index:30;font-family:var(--serif);
+    font-size:22px;font-weight:600;box-shadow:0 3px 14px rgba(156,46,34,.35)}
+  .seal-fab:active{background:var(--seal-deep);transform:scale(.96)}
+
+  /* ══ 편집 화면 ══ */
+  #editor{display:none;flex:1;flex-direction:column;min-height:0;overflow-y:auto;
+    padding-bottom:90px}
+  body.editing #editor{display:flex}
+  body.editing main,body.editing .seal-fab,body.editing #modeTabs{display:none}
+  .cat-row{display:flex;gap:6px;padding:16px 20px 4px;flex-wrap:wrap}
+  .cat{font-family:var(--sans);font-size:12px;padding:6px 13px;border-radius:15px;
+    border:1px solid var(--line);background:var(--paper);color:var(--ink-soft);cursor:pointer}
+  .cat.on{background:var(--seal);border-color:var(--seal);color:#FBF6EF}
+  .fld{padding:10px 20px 0}
+  .fld label{display:block;font-family:var(--sans);font-size:10.5px;
+    letter-spacing:.1em;color:var(--ink-soft);margin-bottom:4px}
+  .fld input,.fld textarea{width:100%;font-family:var(--serif);color:var(--ink);
+    background:none;border:none;border-bottom:1px solid var(--line);
+    outline:none;padding:4px 0 8px}
+  .fld input:focus,.fld textarea:focus{border-bottom-color:var(--ink-soft)}
+  #f-title{font-size:19px;font-weight:700}
+  #f-titleJp{font-size:14px;color:var(--ink-soft)}
+  .fld textarea{resize:vertical;min-height:120px;font-size:15.5px;line-height:1.9;
+    border:1px solid var(--line);border-radius:8px;padding:12px}
+  #f-bodyJp,#f-refs{min-height:80px}
+  .hint{font-family:var(--sans);font-size:10.5px;color:var(--ink-soft);
+    margin-top:4px;line-height:1.6}
+  .fold{font-family:var(--sans);font-size:12px;color:var(--ink-soft);
+    background:none;border:none;padding:12px 20px 0;cursor:pointer;text-align:left}
+  .folded{display:none}
+  #previewBox{padding:10px 20px;font-size:15.5px;line-height:1.95;display:none}
+  #previewBox p{margin:.8em 0}
+  #previewBox em{font-style:italic}
+  #previewBox .jp{color:var(--ink-soft);border-top:1px dashed var(--line);
+    margin-top:1.2em;padding-top:1em}
+  body.previewing #editFields{display:none}
+  body.previewing #previewBox{display:block}
+  .toolbar{position:fixed;bottom:0;left:0;right:0;max-width:720px;margin:0 auto;
+    z-index:25;display:flex;align-items:center;gap:2px;
+    padding:8px 12px calc(env(safe-area-inset-bottom,0px) + 8px);
+    background:var(--paper);border-top:1px solid var(--line)}
+  body:not(.editing) .toolbar{display:none}
+  .toolbar .tspacer{flex:1}
+  #saveSeal{width:44px;height:44px;flex:none;background:var(--seal);color:#FBF6EF;
+    border:none;border-radius:8px;font-family:var(--serif);font-size:13px;
+    font-weight:600;letter-spacing:.1em;cursor:pointer;line-height:1.25}
+  #saveSeal:active{background:var(--seal-deep)}
+  #saveSeal.saved{background:var(--ink)}
+
+  /* ══ 시트 ══ */
+  .sheet-bg{display:none;position:fixed;inset:0;background:rgba(28,25,21,.35);z-index:40}
+  .sheet-bg.open{display:block}
+  .sheet{position:fixed;left:0;right:0;bottom:0;z-index:41;max-width:720px;margin:0 auto;
+    background:var(--paper);border-radius:14px 14px 0 0;
+    padding:22px 20px calc(env(safe-area-inset-bottom,0px) + 26px);
+    transform:translateY(105%);transition:transform .22s ease;
+    max-height:80vh;overflow-y:auto}
+  .sheet.open{transform:none}
+  .sheet h2{font-size:15px;font-weight:700;margin-bottom:4px}
+  .sheet .note{font-family:var(--sans);font-size:12px;line-height:1.7;
+    color:var(--ink-soft);margin-bottom:14px}
+  .sheet label{display:block;font-family:var(--sans);font-size:11px;
+    letter-spacing:.08em;color:var(--ink-soft);margin:12px 0 5px}
+  .sheet input{width:100%;font-family:var(--sans);font-size:14px;color:var(--ink);
+    background:var(--wash);border:1px solid var(--line);border-radius:7px;
+    padding:10px 12px;outline:none}
+  .row2{display:flex;gap:10px;margin-top:18px}
+  .btn{flex:1;font-family:var(--sans);font-size:14px;font-weight:600;
+    padding:13px 0;border-radius:8px;border:1px solid var(--line);
+    background:var(--paper);color:var(--ink);cursor:pointer}
+  .btn.primary{background:var(--ink);border-color:var(--ink);color:var(--paper)}
+  .btn.seal{background:var(--seal);border-color:var(--seal);color:#FBF6EF}
+  #ghStatus,#pubStatus{font-family:var(--sans);font-size:12px;line-height:1.7;
+    margin-top:12px;color:var(--ink-soft);word-break:break-all}
+  .ok{color:#2F6B3A!important}.err{color:var(--seal-deep)!important}
+  .danger-line{margin-top:20px;text-align:center}
+  .danger-line button{font-family:var(--sans);font-size:12px;color:var(--seal-deep);
+    background:none;border:none;cursor:pointer;padding:8px}
+  #toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 92px);
+    transform:translateX(-50%) translateY(8px);opacity:0;pointer-events:none;
+    background:var(--ink);color:var(--paper);font-family:var(--sans);font-size:13px;
+    padding:9px 16px;border-radius:20px;transition:all .25s ease;z-index:60;white-space:nowrap}
+  #toast.show{opacity:1;transform:translateX(-50%)}
+</style>
+</head>
+<body>
+
+<header id="modeTabs">
+  <button class="mode on" id="tabDump">수첩</button>
+  <button class="mode" id="tabPosts">원고</button>
+  <span class="spacer"></span>
+  <button class="ghost" id="exportBtn">내보내기</button>
+  <button class="ghost" id="gearBtn">설정</button>
+</header>
+<header id="editHead" style="display:none">
+  <button class="ghost" id="backBtn">← 목록</button>
+  <span class="spacer"></span>
+  <button class="ghost" id="previewBtn">미리보기</button>
+</header>
+
+<main id="viewDump">
+  <div id="dumpBar">
+    <input id="dumpIn" placeholder="쏟아내기 — 판단은 나중에" autocomplete="off" enterkeyhint="done">
+    <button id="dumpAdd">↵</button>
+  </div>
+  <div class="chips" id="chipRow">
+    <button class="chip on" data-f="all">전체</button>
+    <button class="chip" data-f="task">할일</button>
+    <button class="chip" data-f="undone">미완</button>
+    <button class="chip" data-f="고성">고성</button>
+    <button class="chip" data-f="레프">레프</button>
+    <button class="chip" data-f="테오">테오</button>
+    <button class="chip" data-f="아유타">아유타</button>
+  </div>
+  <ul class="dump" id="dumpList"></ul>
+  <div class="dump-empty" id="dumpEmpty"><b>머릿속이 곧 목록이 됩니다</b>위 칸에 쓰고 엔터 —<br>기호를 누르면 메모↔일정↔할일 전환,<br>글을 누르면 태그·완료·삭제</div>
+</main>
+
+<main id="viewPosts" style="display:none">
+  <div class="empty" id="emptyMsg"><b>아직 초고가 없습니다</b>오른쪽 아래 인장을 눌러<br>새 섬을 시작하세요</div>
+  <ul class="posts" id="postList"></ul>
+</main>
+
+<section id="editor">
+  <div id="editFields">
+    <div class="cat-row" id="catRow"></div>
+    <div class="fld"><input id="f-title" placeholder="제목" autocomplete="off"></div>
+    <div class="fld"><input id="f-titleJp" placeholder="日本語タイトル (선택)" autocomplete="off"></div>
+    <div class="fld"><label>날짜</label><input id="f-date" autocomplete="off" style="font-family:var(--sans);font-size:13px"></div>
+    <div class="fld"><label>본문</label>
+      <textarea id="f-body" placeholder="빈 줄로 문단을 나눕니다. *기울임*은 별표로."></textarea>
+      <div class="hint">문단은 빈 줄, <em>기울임</em>은 *별표* — 발행 시 자동으로 형식이 입혀집니다</div>
+    </div>
+    <button class="fold" id="foldJp">+ 日本語 본문</button>
+    <div class="fld folded" id="jpWrap">
+      <textarea id="f-bodyJp" placeholder="日本語本文 (선택)"></textarea>
+    </div>
+    <button class="fold" id="foldRefs">+ 참고문헌</button>
+    <div class="fld folded" id="refsWrap">
+      <textarea id="f-refs" placeholder="라벨 | https://주소&#10;라벨 | https://주소"></textarea>
+      <div class="hint">한 줄에 하나, "라벨 | 주소" 형식</div>
+    </div>
+  </div>
+  <div id="previewBox"></div>
+</section>
+
+<div class="toolbar">
+  <span class="tspacer"></span>
+  <button class="ghost" id="pubBtn">발행…</button>
+  <button id="saveSeal">저장</button>
+</div>
+
+<button class="seal-fab" id="newBtn" style="display:none">✎</button>
+
+<div class="sheet-bg" id="sheetBg"></div>
+
+<div class="sheet" id="settingsSheet">
+  <h2>GitHub 연동</h2>
+  <p class="note">발행은 저장소의 lib/data.json을 읽어 글을 끼워 넣고 다시 커밋합니다. Vercel이 자동으로 재배포해요. (이 미리보기 환경에서는 외부 API가 막혀 있을 수 있습니다 — 배포 버전에서 작동)</p>
+  <label>저장소 (owner/repo)</label><input id="ghRepo" placeholder="lefkim/저장소이름">
+  <label>데이터 파일 경로</label><input id="ghPath" placeholder="lib/data.json">
+  <label>브랜치</label><input id="ghBranch" placeholder="main">
+  <label>Personal Access Token</label><input id="ghToken" type="password" placeholder="ghp_…">
+  <div id="ghStatus"></div>
+  <div class="row2"><button class="btn" id="settingsClose">닫기</button>
+    <button class="btn primary" id="settingsSave">저장</button></div>
+</div>
+
+<div class="sheet" id="pubSheet">
+  <h2>발행</h2>
+  <p class="note" id="pubNote"></p>
+  <div class="row2">
+    <button class="btn" id="htmlCopy">본문 HTML 복사</button>
+    <button class="btn seal" id="ghCommit">저장소로 발행</button>
+  </div>
+  <div id="pubStatus"></div>
+  <div class="danger-line"><button id="delBtn">이 초고 삭제</button></div>
+</div>
+
+<div class="sheet" id="exportSheet">
+  <h2>수첩 내보내기</h2>
+  <p class="note">현재 필터에 보이는 항목을 마크다운으로 만듭니다. 주간 정리 때 Claude에게 붙여넣으면 답사노트·결정로그로 정리됩니다.</p>
+  <div class="row2"><button class="btn" id="dumpCopy">복사</button>
+    <button class="btn primary" id="dumpDownload">.md 내려받기</button></div>
+  <div class="danger-line"><button id="clearDone">완료된 할일 비우기</button></div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+/* 저장 어댑터 */
+const store={
+  isArtifact:typeof window.storage!=='undefined', mem:{},
+  async get(k){ if(this.isArtifact){try{const r=await window.storage.get(k);return r?r.value:null}catch(e){return null}}
+    try{return localStorage.getItem(k)}catch(e){return this.mem[k]??null}},
+  async set(k,v){ if(this.isArtifact){try{await window.storage.set(k,v)}catch(e){this.mem[k]=v}return}
+    try{localStorage.setItem(k,v)}catch(e){this.mem[k]=v}},
+};
+const $=id=>document.getElementById(id);
+const esc=s=>s.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let toastTimer;
+function toast(m){const t=$('toast');t.textContent=m;t.classList.add('show');
+  clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove('show'),1700)}
+function openSheet(id){$('sheetBg').classList.add('open');$(id).classList.add('open')}
+function closeSheets(){$('sheetBg').classList.remove('open');
+  document.querySelectorAll('.sheet').forEach(s=>s.classList.remove('open'))}
+$('sheetBg').onclick=closeSheets;
+
+/* ═══ 수첩 ═══ */
+const SYM={task:'•',note:'–',event:'○'};
+const CYCLE={note:'event',event:'task',task:'note'};
+let dump=[],filter='all';
+async function loadDump(){const raw=await store.get('lef-dump');dump=raw?JSON.parse(raw):[];renderDump()}
+async function saveDump(){await store.set('lef-dump',JSON.stringify(dump))}
+function addDump(){const v=$('dumpIn').value.trim();if(!v)return;
+  dump.unshift({id:'d'+Date.now(),text:v,type:'note',done:false,tag:null,ts:new Date().toISOString()});
+  $('dumpIn').value='';$('dumpIn').focus();saveDump();renderDump()}
+const fmtDay=iso=>{const d=new Date(iso);
+  return `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`};
+const fmtTime=iso=>{const d=new Date(iso);
+  return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};
+function visible(){return dump.filter(e=>{
+  if(filter==='all')return true;
+  if(filter==='task')return e.type==='task';
+  if(filter==='undone')return e.type==='task'&&!e.done;
+  return e.tag===filter})}
+function renderDump(){
+  const ul=$('dumpList');ul.innerHTML='';
+  const items=visible();
+  $('dumpEmpty').style.display=items.length?'none':'block';
+  let lastDay='';
+  items.forEach(e=>{
+    const day=fmtDay(e.ts);
+    if(day!==lastDay){lastDay=day;
+      const h=document.createElement('div');h.className='day-head';h.textContent=day;ul.appendChild(h)}
+    const li=document.createElement('li');
+    li.innerHTML=`<div class="d-row">
+      <span class="d-sym ${e.done?'done':''}">${e.done&&e.type==='task'?'×':SYM[e.type]}</span>
+      <span class="d-text ${e.done?'done':''}">${esc(e.text)}${e.tag?`<span class="d-tag">${e.tag}</span>`:''}</span>
+      <span class="d-meta">${fmtTime(e.ts)}</span></div>
+      <div class="d-actions">
+        ${e.type==='task'?`<button data-a="done">${e.done?'미완으로':'완료 ×'}</button>`:''}
+        <button data-a="tag" data-t="고성">고성</button>
+        <button data-a="tag" data-t="레프">레프</button>
+        <button data-a="tag" data-t="테오">테오</button>
+        <button data-a="tag" data-t="아유타">아유타</button>
+        <button data-a="del" class="del">삭제</button></div>`;
+    li.querySelector('.d-sym').onclick=ev=>{ev.stopPropagation();
+      e.type=CYCLE[e.type];if(e.type!=='task')e.done=false;saveDump();renderDump()};
+    li.querySelector('.d-row').onclick=()=>{
+      document.querySelectorAll('ul.dump li.open').forEach(x=>{if(x!==li)x.classList.remove('open')});
+      li.classList.toggle('open')};
+    li.querySelectorAll('.d-actions button').forEach(b=>{
+      b.onclick=ev=>{ev.stopPropagation();const a=b.dataset.a;
+        if(a==='done')e.done=!e.done;
+        if(a==='tag')e.tag=(e.tag===b.dataset.t?null:b.dataset.t);
+        if(a==='del')dump=dump.filter(x=>x.id!==e.id);
+        saveDump();renderDump()}});
+    ul.appendChild(li)});
+}
+$('dumpAdd').onclick=addDump;
+$('dumpIn').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();addDump()}});
+document.querySelectorAll('.chip').forEach(c=>{c.onclick=()=>{
+  document.querySelectorAll('.chip').forEach(x=>x.classList.remove('on'));
+  c.classList.add('on');filter=c.dataset.f;renderDump()}});
+function dumpToMd(){const items=visible();
+  let md=`# 수첩 ${fmtDay(new Date().toISOString())}\n`;let lastDay='';
+  items.forEach(e=>{const day=fmtDay(e.ts);
+    if(day!==lastDay){lastDay=day;md+=`\n## ${day}\n`}
+    const mark=e.type==='task'?(e.done?'[x] ':'[ ] '):SYM[e.type]+' ';
+    md+=`- ${mark}${e.text}${e.tag?` #${e.tag}`:''} (${fmtTime(e.ts)})\n`});
+  return md}
+$('exportBtn').onclick=()=>openSheet('exportSheet');
+$('dumpCopy').onclick=async()=>{try{await navigator.clipboard.writeText(dumpToMd());
+  toast('복사됨');closeSheets()}catch(e){toast('복사 실패 — 내려받기를 쓰세요')}};
+$('dumpDownload').onclick=()=>{const blob=new Blob([dumpToMd()],{type:'text/markdown'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download='dump-'+fmtDay(new Date().toISOString())+'.md';a.click();URL.revokeObjectURL(a.href)};
+$('clearDone').onclick=()=>{if(!confirm('완료된 할일을 지웁니다. 계속할까요?'))return;
+  dump=dump.filter(e=>!(e.type==='task'&&e.done));saveDump();renderDump();closeSheets();toast('정리됨')};
+
+/* ═══ 모드 전환 ═══ */
+function setMode(m){const dumpOn=m==='dump';
+  $('tabDump').classList.toggle('on',dumpOn);
+  $('tabPosts').classList.toggle('on',!dumpOn);
+  $('viewDump').style.display=dumpOn?'':'none';
+  $('viewPosts').style.display=dumpOn?'none':'';
+  $('newBtn').style.display=dumpOn?'none':'';
+  $('exportBtn').style.display=dumpOn?'':'none';
+  if(dumpOn)setTimeout(()=>$('dumpIn').focus(),50)}
+$('tabDump').onclick=()=>setMode('dump');
+$('tabPosts').onclick=()=>setMode('posts');
+
+/* ═══ 원고 (레프 스키마) ═══ */
+const CATS=[{name:'한국화',nameJp:'韓国画'},{name:'커피',nameJp:'コーヒー'},
+  {name:'족자카르타',nameJp:'ジョグジャカルタ'},{name:'서예·전각',nameJp:'書道・篆刻'}];
+let drafts=[],cur=null,saveTimer=null;
+const todayDot=()=>{const d=new Date();
+  return `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`};
+
+/* 본문 → HTML: 빈 줄=문단, *별표*=em */
+function toHtml(txt){
+  if(!txt||!txt.trim())return'';
+  return txt.trim().split(/\n\s*\n/).map(p=>{
+    let t=esc(p.trim()).replace(/\n/g,'<br>');
+    t=t.replace(/\*([^*\n]+)\*/g,'<em>$1</em>');
+    return `<p>${t}</p>`}).join('')}
+function parseRefs(txt){
+  if(!txt||!txt.trim())return null;
+  const arr=txt.trim().split('\n').map(l=>{
+    const i=l.indexOf('|');if(i<0)return null;
+    const label=l.slice(0,i).trim(),url=l.slice(i+1).trim();
+    return label&&url?{label,url}:null}).filter(Boolean);
+  return arr.length?arr:null}
+
+async function loadDrafts(){
+  const raw=await store.get('lef-drafts3');drafts=raw?JSON.parse(raw):[];
+  const cfg=await store.get('lef-gh3');
+  if(cfg){const c=JSON.parse(cfg);
+    $('ghRepo').value=c.repo||'';$('ghPath').value=c.path||'lib/data.json';
+    $('ghBranch').value=c.branch||'';$('ghToken').value=c.token||''}
+  else $('ghPath').value='lib/data.json';
+  renderDrafts()}
+async function persistDrafts(){await store.set('lef-drafts3',JSON.stringify(drafts))}
+function renderDrafts(){
+  const ul=$('postList');ul.innerHTML='';
+  $('emptyMsg').style.display=drafts.length?'none':'block';
+  [...drafts].sort((a,b)=>b.updated.localeCompare(a.updated)).forEach(p=>{
+    const li=document.createElement('li');
+    li.innerHTML=`<span class="dot ${p.published?'':'draft'}"></span>
+      <div class="p-body"><div class="p-title ${p.title?'':'untitled'}">${p.title?esc(p.title):'무제'}</div>
+      <div class="p-meta">${CATS[p.cat].name} · ${p.date} · ${p.published?'발행됨':'초고'}</div></div>`;
+    li.onclick=()=>openDraft(p.id);ul.appendChild(li)});
+}
+function renderCats(){
+  const row=$('catRow');row.innerHTML='';
+  CATS.forEach((c,i)=>{const b=document.createElement('button');
+    b.className='cat'+(cur&&cur.cat===i?' on':'');b.textContent=c.name;
+    b.onclick=()=>{cur.cat=i;renderCats();markDirty()};row.appendChild(b)})}
+function openDraft(id){
+  cur=drafts.find(p=>p.id===id);if(!cur)return;
+  renderCats();
+  $('f-title').value=cur.title;$('f-titleJp').value=cur.titleJp||'';
+  $('f-date').value=cur.date;$('f-body').value=cur.body;
+  $('f-bodyJp').value=cur.bodyJp||'';$('f-refs').value=cur.refs||'';
+  $('jpWrap').classList.toggle('folded',!cur.bodyJp);
+  $('refsWrap').classList.toggle('folded',!cur.refs);
+  document.body.classList.add('editing');document.body.classList.remove('previewing');
+  $('previewBtn').textContent='미리보기';
+  $('modeTabs').style.display='none';$('editHead').style.display='flex'}
+function newDraft(){
+  const p={id:'p'+Date.now(),cat:2,title:'',titleJp:'',date:todayDot(),
+    body:'',bodyJp:'',refs:'',published:false,updated:new Date().toISOString()};
+  drafts.push(p);openDraft(p.id)}
+function backToList(){
+  document.body.classList.remove('editing','previewing');
+  $('modeTabs').style.display='flex';$('editHead').style.display='none';
+  drafts=drafts.filter(p=>p.title||p.body);
+  persistDrafts();renderDrafts();cur=null;setMode('posts')}
+function collect(){if(!cur)return;
+  cur.title=$('f-title').value;cur.titleJp=$('f-titleJp').value;
+  cur.date=$('f-date').value||todayDot();cur.body=$('f-body').value;
+  cur.bodyJp=$('f-bodyJp').value;cur.refs=$('f-refs').value;
+  cur.updated=new Date().toISOString()}
+async function saveDraft(show=true){if(!cur)return;
+  collect();await persistDrafts();
+  if(show){const b=$('saveSeal');b.classList.add('saved');b.textContent='저장됨';
+    setTimeout(()=>{b.classList.remove('saved');b.textContent='저장'},1200)}}
+function markDirty(){clearTimeout(saveTimer);saveTimer=setTimeout(()=>saveDraft(false),1500)}
+$('newBtn').onclick=newDraft;
+$('backBtn').onclick=()=>saveDraft(false).then(backToList);
+['f-title','f-titleJp','f-date','f-body','f-bodyJp','f-refs'].forEach(id=>{
+  $(id).oninput=markDirty});
+$('foldJp').onclick=()=>$('jpWrap').classList.toggle('folded');
+$('foldRefs').onclick=()=>$('refsWrap').classList.toggle('folded');
+$('previewBtn').onclick=()=>{
+  const on=document.body.classList.toggle('previewing');
+  if(on){collect();
+    let html=toHtml(cur.body)||'<p style="color:var(--ink-soft)">빈 원고</p>';
+    if(cur.bodyJp&&cur.bodyJp.trim())html+=`<div class="jp">${toHtml(cur.bodyJp)}</div>`;
+    $('previewBox').innerHTML=html;$('previewBtn').textContent='편집'}
+  else $('previewBtn').textContent='미리보기'};
+$('saveSeal').onclick=()=>saveDraft();
+
+/* ═══ 발행 ═══ */
+$('pubBtn').onclick=()=>{if(!cur)return;saveDraft(false);
+  $('pubNote').textContent=`"${cur.title||'무제'}" → ${CATS[cur.cat].name} 섬`;
+  $('pubStatus').textContent='';$('pubStatus').className='';openSheet('pubSheet')};
+$('htmlCopy').onclick=async()=>{collect();
+  const chunk=JSON.stringify(buildPost(cur,'?'),null,2);
+  try{await navigator.clipboard.writeText(chunk);toast('JSON 조각 복사됨 — data.json에 직접 붙일 수 있어요')}
+  catch(e){toast('복사 실패')}};
+$('delBtn').onclick=async()=>{if(!cur)return;
+  if(!confirm('이 초고를 삭제할까요? 되돌릴 수 없습니다.'))return;
+  drafts=drafts.filter(p=>p.id!==cur.id);
+  await persistDrafts();closeSheets();backToList()};
+
+function buildPost(d,num){
+  const post={num:String(num),date:d.date||todayDot(),title:d.title||'무제'};
+  if(d.titleJp&&d.titleJp.trim())post.titleJp=d.titleJp.trim();
+  post.body=toHtml(d.body);
+  if(d.bodyJp&&d.bodyJp.trim())post.bodyJp=toHtml(d.bodyJp);
+  const refs=parseRefs(d.refs);if(refs)post.refs=refs;
+  return post}
+
+/* UTF-8 안전 base64 */
+const b64enc=s=>btoa(String.fromCharCode(...new TextEncoder().encode(s)));
+const b64dec=s=>new TextDecoder().decode(Uint8Array.from(atob(s),c=>c.charCodeAt(0)));
+
+$('ghCommit').onclick=async()=>{
+  const cfgRaw=await store.get('lef-gh3');const cfg=cfgRaw?JSON.parse(cfgRaw):{};
+  const st=$('pubStatus');
+  if(!cfg.repo||!cfg.token){st.className='err';
+    st.textContent='설정에서 저장소와 토큰을 먼저 입력하세요.';return}
+  collect();
+  const path=cfg.path||'lib/data.json';
+  const branch=cfg.branch||'main';
+  const api=`https://api.github.com/repos/${cfg.repo}/contents/${path}`;
+  st.className='';st.textContent='data.json 읽는 중…';
+  try{
+    const head=await fetch(api+`?ref=${branch}`,{headers:{Authorization:'Bearer '+cfg.token}});
+    if(!head.ok)throw new Error('데이터 읽기 실패 '+head.status);
+    const file=await head.json();
+    const cats=JSON.parse(b64dec(file.content.replace(/\n/g,'')));
+    const catName=CATS[cur.cat].name;
+    const target=cats.find(c=>c.name===catName);
+    if(!target)throw new Error(`카테고리 "${catName}"를 찾을 수 없음`);
+    /* 다음 num 계산 (soon 제외) */
+    const real=target.posts.filter(p=>!p.soon);
+    let num,idx=-1;
+    if(cur.pubNum!=null){ /* 재발행 = 수정 */
+      num=cur.pubNum;idx=target.posts.findIndex(p=>!p.soon&&p.num===String(num));
+    } else {
+      num=real.length?Math.max(...real.map(p=>parseInt(p.num)||0))+1:0;
+    }
+    const post=buildPost(cur,num);
+    if(idx>=0)target.posts[idx]=post;else target.posts.push(post);
+    st.textContent='커밋 중…';
+    const res=await fetch(api,{method:'PUT',
+      headers:{Authorization:'Bearer '+cfg.token,'Content-Type':'application/json'},
+      body:JSON.stringify({
+        message:(idx>=0?'update: ':'post: ')+catName+' — '+(cur.title||'무제'),
+        content:b64enc(JSON.stringify(cats,null,2)),
+        branch,sha:file.sha})});
+    if(!res.ok)throw new Error('커밋 실패 '+res.status);
+    cur.published=true;cur.pubNum=num;await persistDrafts();
+    st.className='ok';
+    st.textContent=`발행 완료 — ${catName} 섬 ${num}번. Vercel이 곧 재배포합니다.`;
+    toast('섬이 떠올랐습니다');
+  }catch(err){st.className='err';
+    st.textContent=(store.isArtifact?'미리보기 환경에서는 외부 API가 막혀 있을 수 있습니다. Vercel 배포 버전에서 시도하세요. ':'')+'('+err.message+')'}
+};
+
+/* ═══ 설정 ═══ */
+$('gearBtn').onclick=()=>openSheet('settingsSheet');
+$('settingsClose').onclick=closeSheets;
+$('settingsSave').onclick=async()=>{
+  await store.set('lef-gh3',JSON.stringify({repo:$('ghRepo').value.trim(),
+    path:$('ghPath').value.trim()||'lib/data.json',
+    branch:$('ghBranch').value.trim()||'main',token:$('ghToken').value.trim()}));
+  toast('연동 정보 저장됨');closeSheets()};
+
+loadDump();loadDrafts();setMode('dump');
+</script>
+</body>
+</html>

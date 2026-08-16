@@ -1,0 +1,13 @@
+{
+  "name": "레프 편집실",
+  "short_name": "편집실",
+  "description": "수첩과 원고 — 컨템포러리 레프의 입력 도구",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#FAF8F3",
+  "theme_color": "#FAF8F3",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
